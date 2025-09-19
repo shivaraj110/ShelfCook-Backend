@@ -1,0 +1,158 @@
+"""
+Represents the nutritional information for a recipe.
+"""
+type Nutritions {
+	fat: String
+	protein: String
+	carbohydrates: String
+}
+
+"""
+Represents a single recipe with all its details.
+"""
+type Recipe {
+	id: ID!
+	recipeName: String!
+	servings: String
+	description: String
+	ingredients: [String!]!
+	procedure: String
+	estimatedTime: String
+	calories: String
+	nutritionalInfo: Nutritions
+	vegan: Boolean
+	categories: [String!]!
+}
+
+"""
+A wrapper for a Recipe that includes details about how well it matches
+a given set of ingredients.
+"""
+type RecipeMatch {
+	recipe: Recipe!
+	matchPercentage: Int!
+	matchingIngredientsCount: Int!
+	totalIngredientsCount: Int!
+	missingIngredients: [String!]!
+}
+
+"""
+A wrapper for a Recipe that includes a relevance score from a full-text search.
+"""
+type RankedRecipe {
+	recipe: Recipe!
+	relevanceScore: Float!
+}
+
+# --- NEW: Reusable filter input ---
+"""
+A standard set of filters that can be applied to recipe queries.
+"""
+input RecipeFilters {
+	vegan: Boolean
+	categories: [String!]
+}
+
+"""
+Defines all the queries available to the client.
+"""
+type Query {
+	"""
+	Finds recipes that can be made with the exact ingredients provided, with optional filters.
+	"""
+	recipesWithExactIngredients(
+		availableIngredients: [String!]!
+		filters: RecipeFilters
+	): [Recipe!]!
+
+	"""
+	Finds recipes by the percentage of matching ingredients, with optional filters.
+	"""
+	recipesByIngredientMatch(
+		availableIngredients: [String!]!
+		minMatchPercentage: Int = 60
+		filters: RecipeFilters
+	): [RecipeMatch!]!
+
+	"""
+	Finds recipes using full-text search, with optional filters.
+	"""
+	recipesWithFullTextSearch(
+		availableIngredients: [String!]!
+		filters: RecipeFilters
+	): [RankedRecipe!]!
+
+	"""
+	Finds recipes using smart matching, with optional filters.
+	"""
+	recipesWithSmartMatching(
+		availableIngredients: [String!]!
+		minMatchPercentage: Int = 50
+		filters: RecipeFilters
+	): [RecipeMatch!]!
+
+	"""
+	Gets quick recipe suggestions, with optional filters.
+	"""
+	quickRecipeSuggestions(
+		availableIngredients: [String!]!
+		limit: Int = 10
+		filters: RecipeFilters
+	): [Recipe!]!
+
+	"""
+	Finds recipes that contain ALL of the specified ingredient names, with optional filters.
+	"""
+	findRecipesByIngredientNames(
+		ingredientNames: [String!]!
+		filters: RecipeFilters
+	): [Recipe!]!
+
+	"""
+	Finds recipes that belong to one or more specified categories.
+	"""
+	findRecipesByCategories(
+		categories: [String!]!
+		filters: RecipeFilters
+	): [Recipe!]!
+}
+
+# --- Input types for Mutations ---
+
+input NutritionsInput {
+	fat: String
+	protein: String
+	carbohydrates: String
+}
+
+input CreateRecipeInput {
+	recipeName: String!
+	servings: String
+	description: String
+	ingredients: [String!]!
+	procedure: String
+	estimatedTime: String
+	calories: String
+	nutritionalInfo: NutritionsInput
+	vegan: Boolean
+	categories: [String!]
+}
+
+input UpdateRecipeInput {
+	recipeName: String
+	servings: String
+	description: String
+	ingredients: [String!]
+	procedure: String
+	estimatedTime: String
+	calories: String
+	nutritionalInfo: NutritionsInput
+	vegan: Boolean
+	categories: [String!]
+}
+
+type Mutation {
+	createRecipe(input: CreateRecipeInput!): Recipe!
+	updateRecipe(id: ID!, input: UpdateRecipeInput!): Recipe
+	deleteRecipe(id: ID!): Recipe
+}
