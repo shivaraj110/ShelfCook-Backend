@@ -19,6 +19,7 @@ app.post("/signup", verifySignUpPayload, async (req, res) => {
       try {
         const user = await prisma.user.create({
           data: {
+            id: payload.userId,
             name,
             email,
             password: hash,
