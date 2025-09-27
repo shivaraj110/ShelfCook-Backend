@@ -44,8 +44,18 @@ type RankedRecipe {
   relevanceScore: Float!
 }
 
+# --- NEW: A type to bundle all data needed for the home screen ---
 """
-A reusable input type for filtering recipes.
+Contains curated data perfect for displaying on a home screen.
+"""
+type HomeScreen {
+  recipeOfTheDay: Recipe
+  featuredRecipes: [Recipe!]!
+  popularCategories: [String!]!
+}
+
+"""
+Input type for filtering recipes by vegan status or category.
 """
 input RecipeFilters {
   vegan: Boolean
@@ -56,8 +66,20 @@ input RecipeFilters {
 Defines all the queries available to the client.
 """
 type Query {
+  # --- NEW: A single query to get all home screen data ---
+  getHomeScreenData: HomeScreen!
+
   """
-  APPROACH 1: Finds recipes that can be made with the exact ingredients provided.
+  Finds recipes that belong to ANY of the specified categories.
+  """
+  findRecipesByCategories(
+    categories: [String!]!
+    filters: RecipeFilters
+  ): [Recipe!]!
+
+  """
+  FINDS RECIPES YOU CAN MAKE RIGHT NOW (100% ingredient match).
+  Slow on large datasets, but very accurate.
   """
   recipesWithExactIngredients(
     availableIngredients: [String!]!
@@ -65,16 +87,25 @@ type Query {
   ): [Recipe!]!
 
   """
-  APPROACH 2: Finds recipes by the percentage of matching ingredients.
+  FINDS RECIPES YOU CAN ALMOST MAKE (match percentage).
+  The most useful query for users.
   """
   recipesByIngredientMatch(
     availableIngredients: [String!]!
-    minMatchPercentage: Int = 60
+    minMatchPercentage: Int = 80
     filters: RecipeFilters
   ): [RecipeMatch!]!
 
   """
-  APPROACH 3: Finds recipes using a performant full-text search.
+  Finds recipes that contain ALL of the specified ingredient names (e.g., "chicken" AND "rice").
+  """
+  findRecipesByIngredientNames(
+    ingredientNames: [String!]!
+    filters: RecipeFilters
+  ): [Recipe!]!
+
+  """
+  Uses a performant full-text search. Good for a primary search bar.
   """
   recipesWithFullTextSearch(
     availableIngredients: [String!]!
@@ -82,7 +113,7 @@ type Query {
   ): [RankedRecipe!]!
 
   """
-  APPROACH 4: Finds recipes using smart matching with substitutions.
+  Finds recipes using smart matching with common substitutions.
   """
   recipesWithSmartMatching(
     availableIngredients: [String!]!
@@ -91,39 +122,29 @@ type Query {
   ): [RecipeMatch!]!
 
   """
-  APPROACH 5: Gets quick recipe suggestions that contain at least one of the ingredients.
+  Gets quick recipe suggestions that contain at least one of the ingredients.
   """
   quickRecipeSuggestions(
     availableIngredients: [String!]!
     limit: Int = 10
     filters: RecipeFilters
   ): [Recipe!]!
-
-  """
-  Finds recipes that contain ALL of the specified ingredient names.
-  """
-  findRecipesByIngredientNames(
-    ingredientNames: [String!]!
-    filters: RecipeFilters
-  ): [Recipe!]!
-
-  """
-  Finds recipes that belong to any of the specified categories.
-  """
-  findRecipesByCategories(
-    categories: [String!]!
-    filters: RecipeFilters
-  ): [Recipe!]!
 }
 
 # --- MUTATIONS ---
 
+"""
+Input for the nutritional information.
+"""
 input NutritionsInput {
   fat: String
   protein: String
   carbohydrates: String
 }
 
+"""
+Input type for creating a new recipe. Bundles all required fields.
+"""
 input CreateRecipeInput {
   recipeName: String!
   servings: String
@@ -137,6 +158,9 @@ input CreateRecipeInput {
   categories: [String!]!
 }
 
+"""
+Input type for updating an existing recipe. All fields are optional.
+"""
 input UpdateRecipeInput {
   recipeName: String
   servings: String
@@ -150,8 +174,22 @@ input UpdateRecipeInput {
   categories: [String!]
 }
 
+"""
+Defines all the mutation operations for creating, updating, and deleting data.
+"""
 type Mutation {
+  """
+  Creates a new recipe and returns the created recipe.
+  """
   createRecipe(input: CreateRecipeInput!): Recipe!
+
+  """
+  Updates an existing recipe by its ID and returns the updated recipe.
+  """
   updateRecipe(id: ID!, input: UpdateRecipeInput!): Recipe
+
+  """
+  Deletes a recipe by its ID and returns the recipe that was deleted.
+  """
   deleteRecipe(id: ID!): Recipe
 }

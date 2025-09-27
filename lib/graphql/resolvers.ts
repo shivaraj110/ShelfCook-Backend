@@ -1,23 +1,23 @@
 import { GraphQLError } from "graphql";
 import { prisma } from "../db";
-import { Prisma, RecipeWhereInput } from "@prisma/client";
+import { RecipeWhereInput } from "@prisma/client";
 
-// A helper function to extract simplified ingredient names for matching logic.
+// A robust function to extract clean, searchable ingredient names from messy strings.
 function extractIngredientNames(ingredients: string[]): string[] {
   return ingredients
     .map((ingredient) => {
-      const cleaned = ingredient
-        .toLowerCase()
+      let cleaned = ingredient.toLowerCase();
+      cleaned = cleaned.replace(/\(.*?\)/g, "").split(",")[0]!;
+      cleaned = cleaned
+        .replace(/[\d½¼¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]/g, "")
         .replace(
-          /^\d+(\.\d+)?\s*(g|kg|ml|l|oz|lb|tbsp|tsp|cup|cups|pinch|handful|clove|large|medium|small)?\s*/i,
-          "",
+          /\s*(g|kg|ml|l|oz|lb|tbsp|tsp|cup|cups|pinch|handful|clove|large|medium|small|can|cans)\s*/gi,
+          " ",
         )
-        .replace(/\(.*?\)/g, "")
-        .split(",")[0]
-        .trim();
-      return cleaned;
+        .replace(/[*]/g, "");
+      return cleaned.trim().replace(/\s+/g, " ");
     })
-    .filter(Boolean); // Filter out any empty strings
+    .filter(Boolean);
 }
 
 // A single, reliable helper function to build the initial database query.
@@ -41,12 +41,63 @@ function buildPrismaWhereClause(filters?: RecipeFilters): RecipeWhereInput {
 
 // ==================================================================
 //
-// A NEW, SIMPLIFIED, AND RELIABLE RESOLVER IMPLEMENTATION
+// RESOLVER IMPLEMENTATION
 //
 // ==================================================================
 
 export const resolvers = {
   Query: {
+    // --- NEW: Resolver for all home screen data ---
+    getHomeScreenData: async () => {
+      try {
+        // --- Recipe of the Day Logic ---
+        const recipeCount = await prisma.recipe.count();
+        const dayOfYear = Math.floor(
+          (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) /
+            (1000 * 60 * 60 * 24),
+        );
+        const recipeOfTheDayIndex = dayOfYear % recipeCount;
+        const recipeOfTheDay = await prisma.recipe.findFirst({
+          skip: recipeOfTheDayIndex,
+        });
+
+        // --- Featured Recipes Logic ---
+        const featuredRecipes = await prisma.recipe.findMany({
+          take: 5,
+          orderBy: { recipeName: "asc" }, // A simple, predictable order
+        });
+
+        // --- Popular Categories Logic ---
+        const allRecipes = await prisma.recipe.findMany({
+          select: { categories: true },
+        });
+        const categoryCounts = new Map<string, number>();
+        for (const recipe of allRecipes) {
+          for (const category of recipe.categories) {
+            categoryCounts.set(
+              category,
+              (categoryCounts.get(category) || 0) + 1,
+            );
+          }
+        }
+        const popularCategories = [...categoryCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10) // Get top 10
+          .map((entry) => entry[0]);
+
+        return {
+          recipeOfTheDay,
+          featuredRecipes,
+          popularCategories,
+        };
+      } catch (error: any) {
+        console.error("ERROR in getHomeScreenData:", error);
+        throw new GraphQLError(
+          `Failed to fetch home screen data: ${error.message}`,
+        );
+      }
+    },
+
     findRecipesByCategories: async (
       _: any,
       {
@@ -55,25 +106,14 @@ export const resolvers = {
       }: { categories: string[]; filters?: RecipeFilters },
     ) => {
       try {
-        // Handle empty categories array
-        if (!categories || categories.length === 0) {
-          return [];
-        }
-
         const baseWhere = buildPrismaWhereClause(filters);
         const finalWhere: RecipeWhereInput = {
           AND: [
-            ...(Array.isArray(baseWhere.AND)
-              ? baseWhere.AND
-              : baseWhere.AND
-                ? [baseWhere.AND]
-                : []),
+            ...(baseWhere.AND || []),
             { categories: { hasSome: categories } },
           ],
         };
-
-        const recipes = await prisma.recipe.findMany({ where: finalWhere });
-        return recipes || []; // Ensure we always return an array
+        return await prisma.recipe.findMany({ where: finalWhere });
       } catch (error: any) {
         console.error("ERROR in findRecipesByCategories:", error);
         throw new GraphQLError(`Database query failed: ${error.message}`);
@@ -88,26 +128,20 @@ export const resolvers = {
       }: { availableIngredients: string[]; filters?: RecipeFilters },
     ) => {
       try {
-        // Handle empty ingredients array
-        if (!availableIngredients || availableIngredients.length === 0) {
-          return [];
-        }
-
         const baseWhere = buildPrismaWhereClause(filters);
         const candidateRecipes = await prisma.recipe.findMany({
           where: baseWhere,
         });
 
-        // Perform the final, complex logic in memory for reliability.
-        const result = candidateRecipes.filter((recipe) =>
-          recipe.ingredients.every((recipeIngredient) =>
-            availableIngredients.some((available) =>
-              recipeIngredient.toLowerCase().includes(available.toLowerCase()),
-            ),
-          ),
-        );
+        const availableLower = availableIngredients.map((i) => i.toLowerCase());
 
-        return result || [];
+        return candidateRecipes.filter((recipe) => {
+          const required = extractIngredientNames(recipe.ingredients);
+          if (required.length === 0) return false;
+          return required.every((req) =>
+            availableLower.some((avail) => req.includes(avail)),
+          );
+        });
       } catch (error: any) {
         console.error("ERROR in recipesWithExactIngredients:", error);
         throw new GraphQLError(`Database query failed: ${error.message}`);
@@ -127,11 +161,6 @@ export const resolvers = {
       },
     ) => {
       try {
-        // Handle empty ingredients array
-        if (!availableIngredients || availableIngredients.length === 0) {
-          return [];
-        }
-
         const baseWhere = buildPrismaWhereClause(filters);
         const candidateRecipes = await prisma.recipe.findMany({
           where: baseWhere,
@@ -140,13 +169,7 @@ export const resolvers = {
         const recipesWithScores = candidateRecipes.map((recipe) => {
           const required = extractIngredientNames(recipe.ingredients);
           if (required.length === 0) {
-            return {
-              recipe,
-              matchPercentage: 0,
-              matchingIngredientsCount: 0,
-              totalIngredientsCount: 0,
-              missingIngredients: [],
-            };
+            return { recipe, matchPercentage: 0, missingIngredients: required };
           }
           const availableLower = availableIngredients.map((i) =>
             i.toLowerCase(),
@@ -166,11 +189,9 @@ export const resolvers = {
           };
         });
 
-        const result = recipesWithScores
+        return recipesWithScores
           .filter((r) => r.matchPercentage >= minMatchPercentage)
           .sort((a, b) => b.matchPercentage - a.matchPercentage);
-
-        return result || [];
       } catch (error: any) {
         console.error("ERROR in recipesByIngredientMatch:", error);
         throw new GraphQLError(`Database query failed: ${error.message}`);
@@ -185,26 +206,19 @@ export const resolvers = {
       }: { ingredientNames: string[]; filters?: RecipeFilters },
     ) => {
       try {
-        // Handle empty ingredient names array
-        if (!ingredientNames || ingredientNames.length === 0) {
-          return [];
-        }
-
         const baseWhere = buildPrismaWhereClause(filters);
         const candidateRecipes = await prisma.recipe.findMany({
           where: baseWhere,
         });
 
-        // Perform the final, complex logic in memory for reliability.
-        const result = candidateRecipes.filter((recipe) =>
-          ingredientNames.every((name) =>
-            recipe.ingredients.some((ing) =>
-              ing.toLowerCase().includes(name.toLowerCase()),
-            ),
-          ),
+        return candidateRecipes.filter((recipe) =>
+          ingredientNames.every((name) => {
+            const nameLower = name.toLowerCase();
+            return extractIngredientNames(recipe.ingredients).some((ing) =>
+              ing.includes(nameLower),
+            );
+          }),
         );
-
-        return result || [];
       } catch (error: any) {
         console.error("ERROR in findRecipesByIngredientNames:", error);
         throw new GraphQLError(`Database query failed: ${error.message}`);
@@ -219,14 +233,11 @@ export const resolvers = {
       }: { availableIngredients: string[]; filters?: RecipeFilters },
     ) => {
       try {
-        if (!availableIngredients || availableIngredients.length === 0)
-          return [];
-
-        // NOTE: Full-text search is a special case and MUST be done in the DB.
-        // Filtering is applied after, as it's hard to combine with raw SQL.
+        if (availableIngredients.length === 0) return [];
         const searchTerms = availableIngredients.join(" | ");
         const results: any[] = await prisma.$queryRaw`
-					SELECT * FROM "Recipe"
+					SELECT *, ts_rank(to_tsvector('english', array_to_string(ingredients, ' ')), plainto_tsquery('english', ${searchTerms})) as relevance_score
+					FROM "Recipe"
 					WHERE to_tsvector('english', array_to_string(ingredients, ' ')) @@ plainto_tsquery('english', ${searchTerms})
 					LIMIT 100;
 				`;
@@ -237,12 +248,10 @@ export const resolvers = {
             filters.categories.some((cat) => recipe.categories.includes(cat));
           return veganMatch && categoryMatch;
         });
-
-        const result = filteredResults.map((r) => ({
+        return filteredResults.map((r) => ({
           recipe: r,
-          relevanceScore: 0,
-        })); // score would need to be passed
-        return result || [];
+          relevanceScore: r.relevance_score,
+        }));
       } catch (error: any) {
         console.error("ERROR in recipesWithFullTextSearch:", error);
         throw new GraphQLError(`Database query failed: ${error.message}`);
@@ -262,11 +271,6 @@ export const resolvers = {
       },
     ) => {
       try {
-        // Handle empty ingredients array
-        if (!availableIngredients || availableIngredients.length === 0) {
-          return [];
-        }
-
         const baseWhere = buildPrismaWhereClause(filters);
         const candidateRecipes = await prisma.recipe.findMany({
           where: baseWhere,
@@ -283,7 +287,7 @@ export const resolvers = {
         const recipesWithScores = candidateRecipes.map((recipe) => {
           const required = extractIngredientNames(recipe.ingredients);
           if (required.length === 0)
-            return { recipe, matchPercentage: 0, missingIngredients: [] };
+            return { recipe, matchPercentage: 0, missingIngredients: required };
           const missing = required.filter(
             (req) => !expandedIngredients.some((avail) => req.includes(avail)),
           );
@@ -295,12 +299,9 @@ export const resolvers = {
             missingIngredients: missing,
           };
         });
-
-        const result = recipesWithScores
+        return recipesWithScores
           .filter((r) => r.matchPercentage >= minMatchPercentage)
           .sort((a, b) => b.matchPercentage - a.matchPercentage);
-
-        return result || [];
       } catch (error: any) {
         console.error("ERROR in recipesWithSmartMatching:", error);
         throw new GraphQLError(`Database query failed: ${error.message}`);
@@ -320,27 +321,18 @@ export const resolvers = {
       },
     ) => {
       try {
-        // Handle empty ingredients array
-        if (!availableIngredients || availableIngredients.length === 0) {
-          return [];
-        }
-
         const baseWhere = buildPrismaWhereClause(filters);
         const candidateRecipes = await prisma.recipe.findMany({
           where: baseWhere,
         });
-
-        const result = candidateRecipes
+        const availableLower = availableIngredients.map((i) => i.toLowerCase());
+        return candidateRecipes
           .filter((recipe) =>
-            recipe.ingredients.some((ing) =>
-              availableIngredients.some((avail) =>
-                ing.toLowerCase().includes(avail.toLowerCase()),
-              ),
+            extractIngredientNames(recipe.ingredients).some((ing) =>
+              availableLower.some((avail) => ing.includes(avail)),
             ),
           )
           .slice(0, limit || 10);
-
-        return result || [];
       } catch (error: any) {
         console.error("ERROR in quickRecipeSuggestions:", error);
         throw new GraphQLError(`Database query failed: ${error.message}`);
@@ -351,8 +343,7 @@ export const resolvers = {
   Mutation: {
     createRecipe: async (_: any, { input }: { input: any }) => {
       try {
-        const recipe = await prisma.recipe.create({ data: { ...input } });
-        return recipe;
+        return await prisma.recipe.create({ data: { ...input } });
       } catch (error: any) {
         console.error("ERROR in createRecipe:", error);
         throw new GraphQLError(`Failed to create recipe: ${error.message}`);
@@ -360,11 +351,10 @@ export const resolvers = {
     },
     updateRecipe: async (_: any, { id, input }: { id: string; input: any }) => {
       try {
-        const recipe = await prisma.recipe.update({
+        return await prisma.recipe.update({
           where: { id: parseInt(id) },
           data: { ...input },
         });
-        return recipe;
       } catch (error: any) {
         console.error("ERROR in updateRecipe:", error);
         throw new GraphQLError(
@@ -374,10 +364,7 @@ export const resolvers = {
     },
     deleteRecipe: async (_: any, { id }: { id: string }) => {
       try {
-        const recipe = await prisma.recipe.delete({
-          where: { id: parseInt(id) },
-        });
-        return recipe;
+        return await prisma.recipe.delete({ where: { id: parseInt(id) } });
       } catch (error: any) {
         console.error("ERROR in deleteRecipe:", error);
         throw new GraphQLError(
