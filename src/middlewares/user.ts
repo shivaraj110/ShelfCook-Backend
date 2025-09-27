@@ -41,7 +41,11 @@ export const verifyUser = async (
   if (!user) {
     return res.status(400).json({ message: "user does not exist" });
   }
-  if (!(await isValidPassword(parsedSchema.data.password, user.password))) {
+  const isPasswordMatch = await isValidPassword(
+    parsedSchema.data.password,
+    user.password,
+  );
+  if (!isPasswordMatch) {
     return res.status(400).json({ message: "invalid password" });
   }
   req.body.userId = user.id;
