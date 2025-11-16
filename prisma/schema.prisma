@@ -30,14 +30,37 @@ model Recipe {
 }
 
 model User {
-  id              String        @id @default(cuid())
+  id              String           @id @default(cuid())
   name            String
-  email           String        @unique
+  email           String           @unique
   password        String // hashed password
   profileImageUrl String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   userRecipes     userRecipes[]
+  UserIngredient  UserIngredient[]
+}
+
+model UserIngredient {
+  id                Int                 @id @default(autoincrement())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id])
+  Vegetable         Vegetable[]
+  Fruit             Fruit[]
+  Meat              Meat[]
+  PlantBasedProtein PlantBasedProtein[]
+  DairyEgg          DairyEgg[]
+  GrainCereal       GrainCereal[]
+  PastaNoodleBread  PastaNoodleBread[]
+  PulseLegume       PulseLegume[]
+  OilFat            OilFat[]
+  SpiceMasala       SpiceMasala[]
+  CondimentSauce    CondimentSauce[]
+  CannedJarGood     CannedJarGood[]
+  Sweetener         Sweetener[]
+  SnackMisc         SnackMisc[]
+  FrozenItem        FrozenItem[]
+  HerbAromatic      HerbAromatic[]
 }
 
 model userRecipes {
@@ -56,4 +79,199 @@ model userRecipes {
   nutritionalInfo Json
   vegan           Boolean
   categories      String[]
+}
+
+model Vegetable {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String? // e.g. "g", "pcs", "cup"
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model Fruit {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model Meat {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  isSeafood        Boolean? // helpful flag
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model PlantBasedProtein {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model DairyEgg {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model GrainCereal {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model PastaNoodleBread {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model PulseLegume {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model OilFat {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  smokePoint       Int? // optional: °C
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model SpiceMasala {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  form             String? // "whole" | "ground" | "blend"
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model CondimentSauce {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model CannedJarGood {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model Sweetener {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model SnackMisc {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model FrozenItem {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
+}
+
+model HerbAromatic {
+  id               Int             @id @default(autoincrement())
+  name             String
+  slug             String          @unique
+  defaultUnit      String?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  UserIngredient   UserIngredient? @relation(fields: [userIngredientId], references: [id])
+  userIngredientId Int?
 }
