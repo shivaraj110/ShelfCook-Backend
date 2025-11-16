@@ -12,7 +12,7 @@ app.use(cors());
 //signup handler
 app.post("/signup", verifySignUpPayload, async (req, res) => {
   const payload = req.body;
-  const { name, phone, email } = payload;
+  const { name, email } = payload;
   try {
     // if signup using email password
     bcrypt.hash(payload.password, 10, async function (err, hash) {
