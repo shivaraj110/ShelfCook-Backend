@@ -7,6 +7,7 @@ const app = express();
 app.use(express.json());
 app.use("/user", user);
 app.use("/recipe", recipe);
+
 app.use(cors());
 
 app.get("/", (req, res) => {
