@@ -152,49 +152,55 @@ export const resolvers = {
       _: any,
       {
         availableIngredients,
-        minMatchPercentage,
+        minMatchPercentage = 80,
         filters,
       }: {
         availableIngredients: string[];
-        minMatchPercentage: number;
+        minMatchPercentage?: number;
         filters?: RecipeFilters;
       },
     ) => {
       try {
-        const baseWhere = buildPrismaWhereClause(filters);
-        const candidateRecipes = await prisma.recipe.findMany({
-          where: baseWhere,
-        });
+        if (!availableIngredients.length) return [];
+        const av = availableIngredients.map((a) => a.toLowerCase());
+        // Get candidates where ingredients array contains at least one token (fast with GIN)
+        const candidates: any[] = await prisma.$queryRaw`
+      SELECT * FROM "Recipe"
+      WHERE ingredients && ${av}::text[]
+    `;
+        // fallback: if none returned, broaden to entire table (previous behaviour)
+        const candidateRecipes = candidates.length
+          ? candidates
+          : await prisma.recipe.findMany({
+              where: buildPrismaWhereClause(filters),
+            });
 
-        const recipesWithScores = candidateRecipes.map((recipe) => {
+        // Then compute exact match percentages in JS (use extractIngredientNames)
+        const results = candidateRecipes.map((recipe) => {
           const required = extractIngredientNames(recipe.ingredients);
-          if (required.length === 0) {
-            return { recipe, matchPercentage: 0, missingIngredients: required };
-          }
-          const availableLower = availableIngredients.map((i) =>
-            i.toLowerCase(),
-          );
+          const availableLower = av;
           const missing = required.filter(
             (req) => !availableLower.some((avail) => req.includes(avail)),
           );
           const matchingCount = required.length - missing.length;
-          const matchPercentage = (matchingCount / required.length) * 100;
-
+          const matchPercentage = required.length
+            ? Math.round((matchingCount / required.length) * 100)
+            : 0;
           return {
             recipe,
-            matchPercentage: Math.round(matchPercentage),
+            matchPercentage,
             matchingIngredientsCount: matchingCount,
             totalIngredientsCount: required.length,
             missingIngredients: missing,
           };
         });
 
-        return recipesWithScores
+        return results
           .filter((r) => r.matchPercentage >= minMatchPercentage)
           .sort((a, b) => b.matchPercentage - a.matchPercentage);
-      } catch (error: any) {
-        console.error("ERROR in recipesByIngredientMatch:", error);
-        throw new GraphQLError(`Database query failed: ${error.message}`);
+      } catch (err: any) {
+        console.error("recipesByIngredientMatch error:", err);
+        throw new GraphQLError(err.message);
       }
     },
 
