@@ -10,8 +10,16 @@ app.use(express.json());
 app.use(cors());
 
 app.post("/vegetable", verifyAuthToken, async (req: Request, res: Response) => {
+  const vegetableIngredients = req.body;
   const ingredient = await prisma.vegetable.create({
-    data: req.body,
+    data: vegetableIngredients,
+  });
+  if (!ingredient) {
+    return res.status(400).json({ message: "Failed to create ingredient" });
+  }
+  res.status(201).json({
+    status: "success",
+    message: "Ingredient created successfully",
   });
 });
 
