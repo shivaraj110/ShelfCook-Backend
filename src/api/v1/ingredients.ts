@@ -19,7 +19,7 @@ app.post("/vegetable", verifyAuthToken, async (req: Request, res: Response) => {
   }
   res.status(201).json({
     status: "success",
-    message: "Ingredient created successfully",
+    message: "Ingredient added successfully!",
   });
 });
 
