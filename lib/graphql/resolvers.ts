@@ -1,5 +1,6 @@
 import { GraphQLError } from "graphql";
 import { prisma } from "../db";
+// @ts-ignore
 import { RecipeWhereInput } from "@prisma/client";
 
 // A robust function to extract clean, searchable ingredient names from messy strings.
