@@ -3,11 +3,19 @@
   "module": "index.ts",
   "type": "module",
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/bun": "latest",
-    "prisma": "^6.16.2"
+    "eslint": "^9.39.2",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-security": "^3.0.1",
+    "eslint-plugin-unicorn": "^62.0.0",
+    "prisma": "^6.16.2",
+    "typescript-eslint": "^8.50.0"
   },
   "scripts": {
     "serve-express": "bun run --watch src/index.ts express",
+    "build": "npx prisma generate & tsc -b",
+    "lint": "eslint",
     "dev": "bun run --watch src/index.ts"
   },
   "peerDependencies": {
@@ -36,6 +44,7 @@
     "os": "^0.1.2",
     "parse-ingredient": "^1.3.0",
     "slugify": "^1.6.6",
+    "winston": "^3.19.0",
     "zod": "^4.1.9"
   }
 }
